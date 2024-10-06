@@ -74,6 +74,19 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
             // Duyệt qua từng đối tượng element để tìm UUIDs
             findUUIDsInObject(element);
 
+            if (element.__type__ === 'cc.Sprite' && element._atlas) {
+                usedUUIDs.add(element._atlas.__uuid__);  // Thêm UUID của plist
+
+                // Tìm các file texture liên quan từ Plist
+                const plistFilePath = findMetaFileInAssets(assetsFolder, element._atlas.__uuid__);
+                if (plistFilePath) {
+                    const plistMetaData = JSON.parse(fs.readFileSync(plistFilePath, 'utf8'));
+                    if (plistMetaData.rawTextureUuid) {
+                        usedUUIDs.add(plistMetaData.rawTextureUuid);  // Thêm UUID của texture từ Label
+                    }
+                }
+            }
+
             // Xử lý riêng sp.Skeleton và cc.Label để tìm các texture và font liên quan
             if (element.__type__ === 'sp.Skeleton' && element._N$skeletonData) {
                 usedUUIDs.add(element._N$skeletonData.__uuid__);  // Thêm UUID của SkeletonData
@@ -211,6 +224,21 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
 
     // Bước 3: Lọc bitmap font thừa (tìm các file .fnt.meta)
     processMetaFiles(assetsFolder, ['.fnt.meta'], (filePath, metaData) => {
+        if (filePath.endsWith('.fnt.meta')) {
+            const folderPath = path.dirname(filePath);
+            const baseName = path.basename(filePath, '.fnt.meta');  // Lấy tên file mà không có phần mở rộng
+            const textureMetaPath = path.join(folderPath, `${baseName}.png.meta`);
+            if (fs.existsSync(textureMetaPath)) {
+                unusedItems.push({
+                    type: 'BitmapFont',
+                    uuid: metaData.uuid,
+                    files: [filePath.replace('.meta', ''), filePath, textureMetaPath.replace('.meta', ''), textureMetaPath],
+                });
+            }
+        }
+    });
+    
+    processMetaFiles(assetsFolder, ['.plist.meta'], (filePath, metaData) => {
         if (filePath.endsWith('.fnt.meta')) {
             const folderPath = path.dirname(filePath);
             const baseName = path.basename(filePath, '.fnt.meta');  // Lấy tên file mà không có phần mở rộng
