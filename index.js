@@ -136,7 +136,7 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         return null;  // Không tìm thấy file
     };
 
-    // Bước 2, 3, 4, 5: Tìm các file không sử dụng (ttf, fnt, json, png)
+    // Bước 2, 3, 4, 5, 6, 7: Tìm các file không sử dụng (ttf, fnt, json, png)
     const processMetaFiles = (folder, extensions, callback) => {
         const files = fs.readdirSync(folder, { withFileTypes: true });
         files.forEach(file => {
@@ -154,7 +154,6 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         });
     };
 
-    // Bước 6: Xóa các file không sử dụng
     const deleteUnusedFiles = () => {
         unusedItems.forEach(item => {
             // Xóa các file meta và file chính
@@ -189,7 +188,7 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         const isEmpty = fs.readdirSync(folder).length === 0;
         if (isEmpty) {
             fs.rmdirSync(folder);
-            console.log(`Đã xóa thư mục rỗng: ${folder}`);
+            //console.log(`Đã xóa thư mục rỗng: ${folder}`);
         }
     };
 
@@ -206,6 +205,28 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
             }
         });
         return totalSize;
+    };
+
+    // Hàm xóa thư mục nếu tồn tại
+    const removeFolderIfExists = (folderPath) => {
+        if (fs.existsSync(folderPath)) {
+            fs.rmSync(folderPath, { recursive: true, force: true });
+            console.log(`Đã xóa thư mục: ${folderPath}`);
+        } else {
+            console.log(`Thư mục không tồn tại: ${folderPath}`);
+        }
+    };
+
+    // Hàm xóa thư mục library, local, temp cùng lớp với assets
+    const deleteProjectFolders = (projectPath) => {
+        const libraryFolder = path.join(projectPath, 'library');
+        const localFolder = path.join(projectPath, 'local');
+        const tempFolder = path.join(projectPath, 'temp');
+
+        // Xóa các thư mục nếu tồn tại
+        removeFolderIfExists(libraryFolder);
+        removeFolderIfExists(localFolder);
+        removeFolderIfExists(tempFolder);
     };
 
     // Lấy dung lượng trước khi xóa
@@ -238,14 +259,15 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         }
     });
     
+    // Bước 4: Lọc atlas thừa (tìm các file .plist.meta)
     processMetaFiles(assetsFolder, ['.plist.meta'], (filePath, metaData) => {
-        if (filePath.endsWith('.fnt.meta')) {
+        if (filePath.endsWith('.plist.meta')) {
             const folderPath = path.dirname(filePath);
-            const baseName = path.basename(filePath, '.fnt.meta');  // Lấy tên file mà không có phần mở rộng
+            const baseName = path.basename(filePath, '.plist.meta');  // Lấy tên file mà không có phần mở rộng
             const textureMetaPath = path.join(folderPath, `${baseName}.png.meta`);
             if (fs.existsSync(textureMetaPath)) {
                 unusedItems.push({
-                    type: 'BitmapFont',
+                    type: 'Plist',
                     uuid: metaData.uuid,
                     files: [filePath.replace('.meta', ''), filePath, textureMetaPath.replace('.meta', ''), textureMetaPath],
                 });
@@ -253,7 +275,7 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         }
     });
 
-    // Bước 4: Lọc skeleton thừa (tìm các file .json.meta)
+    // Bước 5: Lọc skeleton thừa (tìm các file .json.meta)
     processMetaFiles(assetsFolder, ['.json.meta'], (filePath, metaData) => {
         if (filePath.endsWith('.json.meta')) {
             const folderPath = path.dirname(filePath);
@@ -270,7 +292,25 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         }
     });
 
-    // Bước 5: Lọc sprite thừa (tìm các file .png.meta)
+    // Bước 6: Lọc sprite thừa (tìm các file .jpg.meta)
+    processMetaFiles(assetsFolder, ['.jpg.meta'], (filePath, metaData) => {
+        if (filePath.endsWith('.jpg.meta')) {
+            // Kiểm tra subMetas để tìm UUID của sprite-frame
+            const subMetas = metaData.subMetas || {};
+            let isUsed = false;
+            for (const key in subMetas) {
+                if (usedUUIDs.has(subMetas[key].uuid)) {
+                    isUsed = true;
+                    break;
+                }
+            }
+            if (!isUsed) {
+                unusedItems.push({ type: 'Sprite', uuid: metaData.uuid, files: [filePath.replace('.meta', ''), filePath] });
+            }
+        }
+    });
+
+    // Bước 7: Lọc sprite thừa (tìm các file .png.meta)
     processMetaFiles(assetsFolder, ['.png.meta'], (filePath, metaData) => {
         if (filePath.endsWith('.png.meta')) {
             // Kiểm tra subMetas để tìm UUID của sprite-frame
@@ -288,11 +328,13 @@ rl.question('📁 Nhập đường dẫn đến thư mục dự án: ', (inputPa
         }
     });
 
-    // Bước 6: Xóa các file không sử dụng
+    // Bước 8: Xóa các file không sử dụng
     console.log(">>>>> Tiến hành xóa các tệp tin không sử dụng!");
     deleteUnusedFiles();
 
+    // Bước 9: Xóa các thư mục local, library, temp và các thư mục rỗng
     removeEmptyDirectories(assetsFolder);
+    deleteProjectFolders(inputPath);
 
     // Lấy dung lượng sau khi xóa
     const finalSize = getDirectorySize(assetsFolder);
