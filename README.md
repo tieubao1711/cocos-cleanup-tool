@@ -2,6 +2,8 @@
 
 A utility tool designed to clean up and optimize Cocos Creator project assets. This tool scans your project for unused resources and removes them to improve performance and reduce project size.
 
+@Telegram: @bavuong12 / @kyotheone
+
 ## Key Features:
 - Detects and removes unused fonts, skeletons, bitmap fonts, and sprite frames.
 - Automatically cleans up empty folders.
